@@ -67,7 +67,6 @@ server<-shinyServer(function(input, output, session) {
             "SELECT DISTINCT choix.libelle as libelle, choix.id
                     FROM choix
                     inner join reponse on choix_id = choix.id
-                    inner join session on session.id = reponse.session_id
                     where reponse.question_id = 14",
             
             .con = con
