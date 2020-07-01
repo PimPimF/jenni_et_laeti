@@ -4,36 +4,41 @@ library(RMySQL)
 library(glue)
 
 # Define UI for application that draws a histogram
-ui <- fluidPage(
-
-    # Application title
-    titlePanel("Réponse étudiant"),
-
-    # Sidebar with a slider input for number of bins 
-    sidebarLayout(
-        sidebarPanel(
-            textInput("etudiant",
-                        "Nom de l'étudiant:",
-                        value = "Nom de l'étudiant")
-        ),
-
-        # Show a plot of the generated distribution
-        mainPanel(
-           dataTableOutput("df")
-        )
-    )
-)
+ui <-shinyUI(
+    navbarPage("Bilan Final - CEFIM",
+               tabPanel(
+                   "Stats par étudiants",
+                   sidebarLayout(
+                       sidebarPanel(
+                           textInput("etudiants", "Nom de l'etudiant", ""),
+                           # Make a list of checkboxes
+                           
+                       ),
+                       mainPanel( dataTableOutput("df" ))
+                   )
+               ),
+               tabPanel(
+                   "Stats par formation",
+                   sidebarLayout(
+                       sidebarPanel(
+                           selectInput("formations", "Choix de la formation", c("A", "B", "C")),
+                           
+                       ), 
+                       mainPanel( dataTableOutput("zig" ))
+                   )
+               ))) 
 
 # Define server logic required to draw a histogram
-server <- function(input, output) {
+dbGetQuery(con, "SET NAMES 'utf8'")
+
+server<-shinyServer(function(input, output, session) {
+    output$value <- renderText({
+        input$etudiants
+    })
     
-    con <- dbConnect(MySQL(), host="localhost", user="", password="", dbname="evaluation")
-    
-    etudiant_filter <- reactive({
-        input$etudiant
-        })
-    req <- glue_sql(
-        "SELECT session.id,
+    output$df <- renderDataTable({
+        req <- glue_sql(
+            "SELECT session.id,
         concat(lpad(question.id, 3, '0'), ' ', question.libelle) as question,
         reponse.texte,
         reponse.date,
@@ -49,17 +54,41 @@ server <- function(input, output) {
                              INNER JOIN reponse AS reponse_prenom
                              ON reponse_prenom.session_id = session.id
                              AND reponse_prenom.question_id = 3
-                             WHERE reponse_nom.texte = {input$etudiant()})",
-        .con = con
-    )
-
-    output$df <- renderDataTable({
-        
-        
-tbl(con,sql(req))%>%
+                             WHERE reponse_nom.texte = {input$etudiants})",
+            .con = con
+        )
+        tbl(con, sql(req)) %>%
+            
             collect()
     })
-}
+    
+    observeEvent(input$etudiants, {
+        req2 <- glue_sql(
+            "SELECT DISTINCT choix.libelle as libelle, choix.id
+                    FROM choix
+                    inner join reponse on choix_id = choix.id
+                    inner join session on session.id = reponse.session_id
+                    where reponse.question_id = 14",
+            
+            .con = con
+        )
+        
+        mes_choix <- tbl(con, sql(req2)) %>%
+            
+            collect() %>%
+            
+            pull(libelle)
+        print(mes_choix)
+        
+        updateSelectInput(session, "formations", choices = mes_choix)
+    })
+})
+
+
+onStop(function() {
+    dbDisconnect(con)
+    
+})    
 
 # Run the application 
 shinyApp(ui = ui, server = server)
