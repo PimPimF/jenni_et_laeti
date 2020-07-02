@@ -4,73 +4,119 @@ library(RMySQL)
 library(glue)
 library(DT)
 
-# Define UI for application that draws a histogram
-ui <-shinyUI(
-    navbarPage("Bilan Final - CEFIM",
-               tabPanel(
-                   "Stats par étudiants",
-                   sidebarLayout(
-                       sidebarPanel(
-                           textInput("etudiants", "Nom de l'etudiant", ""),
-                           # Make a list of checkboxes
-                           
-                       ),
-                       mainPanel( dataTableOutput("df" ))
-                   )
-               ),
-               tabPanel(
-                   "Stats par formation",
-                   sidebarLayout(
-                       sidebarPanel(
-                           selectInput("formations", "Choix de la formation", c("A", "B", "C")),
-                           
-                       ), 
-                       mainPanel( dataTableOutput("zig" ))
-                   )
-               ))) 
+#ui.R
 
-# Define server logic required to draw a histogram
-dbGetQuery(con, "SET NAMES 'utf8'")
+# connexion avec la base de données
 
-server<-shinyServer(function(input, output, session) {
-    output$value <- renderText({
-        input$etudiants
-    })
+
+
+# récupère les libellés des formations
+recup_formation <- function() {
     
-    output$df <- renderDataTable({
-        req <- glue_sql(
-            "SELECT session.id,
-        concat(lpad(question.id, 3, '0'), ' ', question.libelle) as question,
-        reponse.texte,
-        reponse.date,
-        reponse.score
-        FROM reponse
-        INNER JOIN question on question.id = reponse.question_id
-        inner join session on session.id = reponse.session_id
-        WHERE session.id in (select session.id
-                             FROM session
-                             INNER JOIN reponse AS reponse_nom
-                             ON reponse_nom.session_id = session.id
-                             AND reponse_nom.question_id = 2
-                             INNER JOIN reponse AS reponse_prenom
-                             ON reponse_prenom.session_id = session.id
-                             AND reponse_prenom.question_id = 3
-                             WHERE reponse_nom.texte = {input$etudiants})",
-            .con = con
+    tbl(con,
+        sql(
+            "SELECT id, libelle as formation FROM choix WHERE question_id=14 LIMIT 11"
+        )) %>% collect
+    
+    
+    
+}
+
+
+#récup nom de tous les élèves
+recup_nom_etudiant <- function() {
+   
+    
+    tbl(
+        con,
+        sql(
+            "SELECT reponse_prenom.session_id as id, reponse_nom.texte AS nom, reponse_prenom.texte as prenom
+                FROM reponse
+                INNER JOIN reponse AS reponse_nom
+                ON reponse_nom.session_id = reponse.session_id
+                AND reponse_nom.question_id = 2
+                INNER JOIN reponse AS reponse_prenom
+                ON reponse_prenom.session_id = reponse.session_id
+                AND reponse_prenom.question_id = 3
+                WHERE reponse.question_id = 14"
         )
-        tbl(con, sql(req)) %>%
-            
-            collect()
-    })
+        
+    ) %>% collect
     
-    observeEvent(input$etudiants, {
-        req2 <- glue_sql(
-            "SELECT DISTINCT choix.libelle as libelle, choix.id
-                    FROM choix
-                    inner join reponse on choix_id = choix.id
-                    where reponse.question_id = 14",
+}
+
+
+
+
+
+ui<-shinyUI(fluidPage(
+    headerPanel("Bilan fin de formation CEFIM"),
+    
+    sidebarPanel(
+        conditionalPanel(
+            condition = "input.tabselected ==1",
             
-            .con = con
+            selectInput("page", "Choisissez une formation",
+                        
+                        choices = c(
+                            setNames(recup_formation()$id, recup_formation()$formation)
+                        )),
+            
+            selectInput(
+                "questions",
+                "Questions",
+                
+                choices = "",
+                selected = ""
+                
+            ),
+            
+            br(),
+            
+            sliderInput(
+                "bins",
+                "1. Sélection pour le visuel",
+                min = 5,
+                max = 25,
+                value = 15
+            ),
+            
+            br(),
+
+                    ),
+        
+        
+        
+        conditionalPanel(condition = "input.tabselected ==2",
+                         selectInput("name2", "Name",
+                                     choices =  c(
+                                         setNames(
+                                             recup_nom_etudiant()$id,
+                                             paste(recup_nom_etudiant()$nom, recup_nom_etudiant()$prenom, sep = " ")
+                                         )
+                                     ))),
+        
+    ),
+    
+    mainPanel(tabsetPanel(
+        tabPanel(
+            "Statistique Formations",
+            value = 1,
+            plotOutput("hist"),
+            dataTableOutput("commentaires")
+            
+        ),
+        
+        
+        
+        tabPanel("Statistiques etudiants", value = 2,
+                 dataTableOutput("df")),
+        
+        id = 'tabselected'
+        
+    ))
+    
+))
         )
         
         mes_choix <- tbl(con, sql(req2)) %>%
