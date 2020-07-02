@@ -3,6 +3,7 @@ library(tidyverse)
 library(RMySQL)
 library(glue)
 library(DT)
+library(shinythemes)
 
 #ui.R
 
@@ -50,6 +51,7 @@ recup_nom_etudiant <- function() {
 
 
 ui<-shinyUI(fluidPage(
+    theme = shinytheme("cerulean"),
     headerPanel("Bilan fin de formation CEFIM"),
     
     sidebarPanel(
