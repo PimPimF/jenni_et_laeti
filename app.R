@@ -161,7 +161,7 @@ graphique <- function(id_question) {
         
         ggplot(aes(x = score)) +
         
-        geom_histogram()
+        geom_histogram(bins = 10)
     
 }
 
@@ -236,14 +236,14 @@ server<-function(session, input, output) {
                 )
             ),
             
-            print(input$page)
+
         )
         
     )
     
     # affichage de l'histogramme
     output$hist <- renderPlot({
-        print(input$questions)
+
         
         graphique(input$questions)
         
@@ -266,7 +266,7 @@ server<-function(session, input, output) {
     
     
     
-    # WIP - affichage des verbatims
+    # affichage des verbatims
     output$commentaires <- renderDataTable({
         recup_ensemble_quest(input$page, input$questions) %>%
             
