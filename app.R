@@ -2,6 +2,7 @@ library(shiny)
 library(tidyverse)
 library(RMySQL)
 library(glue)
+library(DT)
 
 # Define UI for application that draws a histogram
 ui <-shinyUI(
