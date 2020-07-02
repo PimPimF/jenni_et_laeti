@@ -117,24 +117,173 @@ ui<-shinyUI(fluidPage(
     ))
     
 ))
+
+# server.R
+dbGetQuery(con, "SET NAMES 'utf8'")
+
+# tous les libellés des formations
+recup_questions_formation <- function(choix_id) {
+   
+    
+    tbl(con, sql(
+        paste(
+            "select distinct(question.id), libelle from reponse
+                                inner join question on question.id = reponse.question_id
+                                inner join session on session.id = reponse.session_id
+                                WHERE session.id in (SELECT DISTINCT session.id
+                                        FROM session
+                                        inner join reponse on session.id = reponse.session_id
+                                        where reponse.question_id = 14
+                                        AND reponse.choix_id = ",
+            choix_id,
+            ")"
+        )
+    )) %>% collect
+    
+}
+
+# toutes les questions score et affichage de l'histogramme
+
+graphique <- function(id_question) {
+    #con <- dbConnect(MySQL(), host="localhost", user="root", password="root", dbname="evaluation")
+    
+    tbl(con, sql(
+        paste(
+            "select score from question
+             inner join reponse
+             on question.id = reponse.question_id
+             and question.id =",
+            id_question
+        )
+    )) %>% collect() %>%
+        
+        ggplot(aes(x = score)) +
+        
+        geom_histogram()
+    
+}
+
+
+
+# récupère toutes les questions d'un étudiant
+
+recup_quest_etudiant <- function(id) {
+    #con <- dbConnect(MySQL(), host="localhost", user="root", password="root", dbname="evaluation")
+    
+    tbl(con, sql(
+        paste(
+            "SELECT question.libelle as question , concat(coalesce(reponse.texte,''),coalesce(reponse.date,''),coalesce(reponse.score,'')) as reponse from reponse
+                        inner join question on question.id = reponse.question_id
+                        inner join session on session.id = reponse.session_id
+                        WHERE session.id in (SELECT DISTINCT session.id
+                        FROM session
+                        inner join reponse on session.id = reponse.session_id
+                        where reponse.question_id = 14
+                        and session.id =",
+            id,
+            ")"
+        )
+    )) %>% collect
+    
+}
+
+
+
+
+# récupère toutes les questions de tous les étudiants
+recup_ensemble_quest <- function(id_formation, id_question) {
+    tbl(con,
+        
+        sql(
+            paste(
+                "select reponse.score, question.libelle, reponse.texte
+                    FROM choix
+                    INNER JOIN reponse as reponse_formation
+                    ON reponse_formation.choix_id = choix.id
+                    AND reponse_formation.question_id = 14
+                    INNER JOIN reponse
+                    ON reponse.session_id = reponse_formation.session_id
+                    INNER JOIN question
+                    ON question.id = reponse.question_id
+                    INNER JOIN page
+                    ON page.id = question.page_id
+                        and choix.id = ",
+                id_formation,
+                " and reponse.question_id = ",
+                id_question
+            )
+        )) %>% collect()
+    
+}
+
+
+
+server<-function(session, input, output) {
+    observeEvent(
+        input$page,
+        
+        updateSelectInput(
+            session,
+            "questions",
+            "question",
+            
+            choices =  c(
+                setNames(
+                    recup_questions_formation(input$page)$id,
+                    recup_questions_formation(input$page)$libelle
+                )
+            ),
+            
+            print(input$page)
         )
         
-        mes_choix <- tbl(con, sql(req2)) %>%
-            
-            collect() %>%
-            
-            pull(libelle)
-        print(mes_choix)
-        
-        updateSelectInput(session, "formations", choices = mes_choix)
-    })
-})
-
-
-onStop(function() {
-    dbDisconnect(con)
+    )
     
-})    
+    # affichage de l'histogramme
+    output$hist <- renderPlot({
+        print(input$questions)
+        
+        graphique(input$questions)
+        
+    })
+    
+    
+    # affichage de la table contenant les questions de l'étudiant avec les boutons permettant les exports dans différents formats
+    
+    output$df <- renderDataTable({
+        datatable(
+            recup_quest_etudiant(input$name2),
+            extensions = "Buttons",
+            options = list(
+                dom = 'Bfrtip',
+                buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
+            )
+        )
+        
+    })
+    
+    
+    
+    # WIP - affichage des verbatims
+    output$commentaires <- renderDataTable({
+        recup_ensemble_quest(input$page, input$questions) %>%
+            
+            select(texte)
+        
+    })
+    
+    
+    # permet de couper les connexions   
+    onStop(function() {
+        dbDisconnect(con)
+        
+        print("ok")
+        
+    })
+    
+    
+    
+}    
 
 # Run the application 
 shinyApp(ui = ui, server = server)
