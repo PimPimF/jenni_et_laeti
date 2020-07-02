@@ -145,7 +145,7 @@ recup_questions_formation <- function(choix_id) {
 
 # toutes les questions score et affichage de l'histogramme
 
-graphique <- function(id_question) {
+graphique <- function(id_question, bins) {
     #con <- dbConnect(MySQL(), host="localhost", user="root", password="root", dbname="evaluation")
     
     tbl(con, sql(
@@ -160,7 +160,7 @@ graphique <- function(id_question) {
         
         ggplot(aes(x = score)) +
         
-        geom_histogram(bins = 10)
+        geom_histogram(bins = bins)
     
 }
 
@@ -244,7 +244,7 @@ server<-function(session, input, output) {
     output$hist <- renderPlot({
 
         
-        graphique(input$questions)
+        graphique(input$questions, input$bins)
         
     })
     
